@@ -1,0 +1,63 @@
+{
+  "features": [
+    "f_pos",
+    "f_impressions",
+    "f_clicks",
+    "f_ctr",
+    "f_days_with_impressions",
+    "f_pos_volatility",
+    "f_pos_trend",
+    "content_type",
+    "main_intent",
+    "competition_level",
+    "search_volume",
+    "competition",
+    "cpc",
+    "backlinks",
+    "word_count",
+    "char_count",
+    "keyword_token_count",
+    "content_age_days"
+  ],
+  "label": [
+    "o_pos",
+    "pos_delta",
+    "is_position_decline"
+  ],
+  "context": [
+    "client_hash_id",
+    "content_hash_id",
+    "url_hash_id",
+    "keyword_hash_id",
+    "report_date",
+    "month"
+  ],
+  "excluded": [
+    "last_optimized_date",
+    "optimization_eligible_date",
+    "is_deleted",
+    "is_published",
+    "gsc_avg_position",
+    "query90d.impressions_90d",
+    "query90d.clicks_90d",
+    "query90d.impressions_last30",
+    "query90d.clicks_last30",
+    "query90d.impressions_prev30",
+    "query90d.clicks_prev30",
+    "query90d.avg_position_90d",
+    "query90d.avg_position_last30",
+    "query90d.avg_position_prev30",
+    "query90d.content_total_impressions_90d"
+  ],
+  "feature_window": [
+    "2026-01-01",
+    "2026-03-31"
+  ],
+  "outcome_window": [
+    "2026-04-01",
+    "2026-04-30"
+  ],
+  "sealed_test_label_month": "2026-06",
+  "label_rule": "is_position_decline = (o_pos - f_pos) >= 1.0",
+  "population": "f_impressions >= 100 AND o_impressions >= 30"
+}
