@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What predicts a web page losing search ranking? — a 79M-row study</title>
+<meta name="description" content="An observational study of 78.8M daily search-performance rows: which observable signals precede a content page losing average search position, and how much of it a transparent rule already captures.">
+<style>
+  :root{
+    --bg:#fdfdfc; --fg:#1c1b19; --muted:#5c5850; --rule:#e3e0d8;
+    --accent:#8a5a2b; --card:#f6f4ef; --warn:#f0e7d8;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#14140f; --fg:#eceae4; --muted:#a7a094; --rule:#33312a;
+           --accent:#d9a25f; --card:#1e1d17; --warn:#2b2418; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:16px/1.65 Georgia,"Iowan Old Style",'Times New Roman',serif;
+       -webkit-text-size-adjust:100%}
+  .wrap{max-width:46rem;margin:0 auto;padding:0 1.15rem 5rem}
+  header{border-bottom:1px solid var(--rule);margin-bottom:2.4rem;padding:3.2rem 0 1.9rem}
+  h1{font-size:2.05rem;line-height:1.2;margin:0 0 .7rem;letter-spacing:-.015em}
+  .sub{color:var(--muted);font-size:1.02rem;margin:0 0 1.1rem}
+  .meta{font:13px/1.6 var(--mono);color:var(--muted)}
+  .meta a{color:var(--accent)}
+  h2{font-size:1.32rem;margin:2.9rem 0 .8rem;padding-top:1.5rem;
+     border-top:1px solid var(--rule);letter-spacing:-.01em}
+  h2 .n{color:var(--muted);font:12px var(--mono);display:block;margin-bottom:.3rem;
+        letter-spacing:.09em;text-transform:uppercase}
+  h3{font-size:1.02rem;margin:1.9rem 0 .5rem}
+  p,li{color:var(--fg)}
+  a{color:var(--accent)}
+  code{font:13.5px var(--mono);background:var(--card);padding:.1em .35em;border-radius:3px}
+  pre{background:var(--card);padding:.95rem 1.05rem;border-radius:6px;overflow-x:auto;
+      font:13px/1.55 var(--mono);border:1px solid var(--rule)}
+  pre code{background:none;padding:0}
+  .abstract{background:var(--card);border-left:3px solid var(--accent);
+            padding:1.15rem 1.3rem;border-radius:0 6px 6px 0;margin:0 0 1rem}
+  .abstract p{margin:0}
+  .tw{overflow-x:auto;margin:1.1rem 0;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:30rem}
+  th,td{padding:.5rem .65rem;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+  th{font-weight:600;color:var(--muted);font-size:12.5px;letter-spacing:.03em;
+     text-transform:uppercase;white-space:nowrap}
+  td.n,th.n{text-align:right;font-family:var(--mono);white-space:nowrap}
+  tr.hl td{background:var(--card);font-weight:600}
+  figure{margin:1.8rem 0}
+  figure img{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);
+             border-radius:6px;padding:.5rem}
+  figcaption{color:var(--muted);font-size:13.5px;margin-top:.55rem;line-height:1.5}
+  .callout{background:var(--warn);border-radius:6px;padding:1rem 1.15rem;margin:1.4rem 0;
+           font-size:15px;border:1px solid var(--rule)}
+  .callout strong{color:var(--accent)}
+  ol.lim>li{margin-bottom:.75rem}
+  footer{border-top:1px solid var(--rule);margin-top:3.5rem;padding-top:1.4rem;
+         color:var(--muted);font-size:14px}
+  @media(max-width:34rem){ h1{font-size:1.62rem} .wrap{padding:0 .95rem 3.5rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>What predicts a web page losing its search ranking?</h1>
+  <p class="sub">An observational study of 78.8 million daily search-performance rows — and what
+  happened when I fixed the train/test split.</p>
+  <p class="meta">
+    si-ux · FlyRank ML Internship 2026 · Ranking Signal Analysis lane · August 2026<br>
+    Code and notebooks:
+    <a href="https://github.com/si-ux/FlyrankAI-Internship">github.com/si-ux/FlyrankAI-Internship</a>
+  </p>
+</header>
+
+<h2><span class="n">Section 0</span>Abstract</h2>
+<div class="abstract">
+<p>Which pages in a content portfolio are most likely to lose search position next month, and can
+that be turned into a review queue a person can actually work down? Using the FlyRank
+pseudonymized warehouse release — 78.8 million daily rows across 104 clients, queried in place
+with DuckDB over remote Parquet — I framed the question as ranking, labelled a page as declining
+when its impression-weighted average search position worsened by at least one place between a
+90-day feature window and the following month, and compared a learned model against a frozen
+five-condition hand-written rule on a client-grouped split. On a sealed June 2026 test month the
+random forest put <strong>86% declining pages in its top 50 against a 56.2% base rate</strong>,
+while the transparent rule reached 78% — a real but modest win, and the same model scored a
+<em>perfect</em> top-50 under a careless random split that let it memorise clients. The output is
+a reason-coded review queue with a per-client cap, an abstention gate for portfolios where skill
+was never measured, and drift monitors. It is decision-support for ordering manual review, not a
+prediction of any page's fate and not a claim about Google's algorithm.</p>
+</div>
+
+<h2><span class="n">Section 1</span>The problem</h2>
+<p>A content strategist owns a portfolio of a few thousand pages and has time to open perhaps
+thirty of them this week. Which thirty?</p>
+<p>The default answer is a dashboard sorted by traffic. That surfaces the <em>biggest</em> pages,
+not the ones <em>slipping</em> — and a page that is quietly sliding from position 8 to position 14
+is invisible on that list until the traffic has already gone.</p>
+<p>So the decision this study supports is narrow and concrete: <strong>the order of a manual
+review queue</strong>. One row is one page. The output is a rank, an action, and the reasons
+behind it. A wrong call costs about an hour of someone's time — and that asymmetry, an hour
+wasted versus a valuable page left to decay, is why this ends as a ranked list for a human rather
+than as an automation.</p>
+
+<h2><span class="n">Section 2</span>Data</h2>
+<p>The FlyRank pseudonymized warehouse release (build <code>v20260703</code>): <strong>78,835,655
+daily performance rows</strong>, 519,606 content items, 104 clients, spanning
+<strong>2025-01-27 → 2026-06-30</strong>. It was never downloaded — DuckDB queried the remote
+Parquet in place, aggregating in SQL and returning only small result frames.</p>
+<p>Two windows, disjoint by construction:</p>
+<div class="tw"><table>
+<tr><th>Window</th><th>Dates</th><th>Role</th></tr>
+<tr><td>Feature window</td><td>2026-01-01 → 2026-03-31</td><td>everything the model may look at</td></tr>
+<tr><td>Outcome window</td><td>2026-04-01 → 2026-04-30</td><td>where the label is measured</td></tr>
+<tr class="hl"><td>Sealed test</td><td>label month 2026-06</td><td>read once, at the very end</td></tr>
+</table></div>
+<p>A page enters the study with at least 100 impressions in the feature window and 30 in the
+outcome month — <strong>106,461 pages across 42 clients</strong>. Position measured on three
+impressions is noise, so the floor is necessary; its consequences are in the limitations.</p>
+<p>Whole families of columns were excluded on purpose. The most painful:
+<code>fact_content_query_90d</code>, which holds query-mix diversity — probably the strongest
+feature family available for this question — has a fixed window opening <strong>2026-04-02</strong>,
+<em>inside</em> my outcome month. Using it would mean showing the model part of the answer. That
+was settled by a date check, not a judgement call. Also excluded: anything label-derived; the
+platform's own optimisation flags, which encode a decision someone already made rather than a fact
+about the world; and every pseudonymous ID, which are for grouping only.</p>
+<p>The release carries no client names, domains, URLs, page titles or raw queries. Every
+identifier shown anywhere in this study is a truncated pseudonym.</p>
+
+<h2><span class="n">Section 3</span>Methodology</h2>
+<p><strong>The label.</strong> A page is declining when its impression-weighted average search
+position worsens by at least <strong>1.0 places</strong> between the two windows. Impression
+weighting matters: averaging daily position figures would let a 2-impression day count as much as
+a 20,000-impression one. Base rate: <strong>56.7%</strong>.</p>
+
+<p><strong>The baseline, written first and then frozen.</strong> Before any model, a rule you can
+read: a page needs review if its ranking was <em>already sliding</em> before the cut-off (3
+points), if that ranking is <em>unstable</em>, if it sits <em>shallow enough to have somewhere to
+fall</em>, if it is <em>seen often enough to matter</em>, and if its visibility is
+<em>intermittent</em> (1 point each).</p>
+
+<div class="callout">
+<strong>The first thing that went wrong.</strong> Five integer conditions produce only eight
+distinct scores across 106,461 pages, so thousands of pages tie. Ranking those ties in whatever
+order the data arrived put precision@50 at <strong>0.420 — below the 0.567 base rate</strong> —
+while precision@5000 was 0.799. A rule that looks worse than chance at the top and far better in
+bulk does not have a weak signal; its <em>ordering is not determined</em>. The data arrives
+clustered by client, so the tie block was one unrepresentative clump. Breaking ties by exposure
+lifted precision@50 to 0.760. The same pathology later explained why a shallow decision tree
+scored 0.320.
+</div>
+
+<p><strong>The split — the decision that mattered most.</strong> Pages are not independent. They
+come in client portfolios sharing a CMS, a template, a publishing cadence and one team's habits.
+A random split puts a client's pages on <em>both</em> sides of the line, letting a model recognise
+the client and recite that client's average outcome instead of learning what precedes a decline.
+So: <code>GroupKFold</code> on client, with every page scored by a model that never saw its
+portfolio.</p>
+
+<p><strong>Leakage checks.</strong> Eight assertions run in the notebooks — no label-derived
+columns, windows verified disjoint, no decision flags, no IDs as features, folds asserted
+non-overlapping, base rate printed beside every metric, all metrics out-of-fold. Plus a positive
+control: deliberately planting the outcome column into the feature set jumps AUC from 0.659 to
+0.950, which proves the harness can actually fail. A clean result only means something if the
+test is capable of catching a dirty one.</p>
+
+<h2><span class="n">Section 4</span>Results</h2>
+<p>Development window, grouped by client, out-of-fold:</p>
+<div class="tw"><table>
+<tr><th>Model</th><th class="n">ROC AUC</th><th class="n">P@50</th><th class="n">P@500</th></tr>
+<tr><td>base rate (random pick)</td><td class="n">0.500</td><td class="n">0.567</td><td class="n">0.567</td></tr>
+<tr><td>logistic regression</td><td class="n">0.617</td><td class="n">0.740</td><td class="n">0.682</td></tr>
+<tr><td>decision tree (depth 4)</td><td class="n">0.612</td><td class="n">0.320</td><td class="n">0.464</td></tr>
+<tr><td>hand-written rule (frozen)</td><td class="n">0.635</td><td class="n">0.760</td><td class="n">0.846</td></tr>
+<tr class="hl"><td>random forest</td><td class="n">0.649</td><td class="n">0.800</td><td class="n">0.832</td></tr>
+</table></div>
+
+<p>Sealed June 2026 month — a month the model was never fitted on:</p>
+<div class="tw"><table>
+<tr><th>Evaluation</th><th class="n">base rate</th><th class="n">ROC AUC</th><th class="n">P@50</th></tr>
+<tr class="hl"><td>sealed, all clients</td><td class="n">0.562</td><td class="n">0.692</td><td class="n">0.860</td></tr>
+<tr><td>sealed, unseen clients only</td><td class="n">0.295</td><td class="n">0.606</td><td class="n">0.600</td></tr>
+<tr><td>sealed, frozen rule</td><td class="n">0.562</td><td class="n">0.656</td><td class="n">0.780</td></tr>
+</table></div>
+
+<figure>
+  <img src="img/precision_at_k_sealed.svg" alt="Precision at K for the random forest and the frozen rule on the sealed June 2026 month, against the base rate.">
+  <figcaption>On the sealed month, both the model and the frozen rule beat the base rate at every
+  queue depth — and the gap between them is small. The rule is a legitimate fallback, not a straw
+  man.</figcaption>
+</figure>
+
+<div class="callout">
+<strong>The finding I would most want another analyst to take away.</strong> The same random
+forest, on the same rows, scores <strong>AUC 0.776 and a perfect precision@50 of 1.000</strong>
+under a random split. Nothing about the model improved — it was simply allowed to see other pages
+belonging to the same client. Reporting that number would have claimed roughly
+<strong>double</strong> the true skill above base rate. The most useful number in this project is
+the one that got <em>worse</em> when I measured it properly.
+</div>
+
+<h2><span class="n">Section 5</span>Interpretation</h2>
+<p>Permutation importance is dominated by <strong>recent position movement</strong> — about three
+times the weight of the next feature — followed by current position, volatility, and how
+consistently the page appears at all. Every one of the top four is <em>ranking behaviour</em>.</p>
+<p>Content properties barely register. Word count, character count, CPC and backlinks sit near the
+bottom. For a study about ranking signals, the observed answer is that <strong>how a page has
+recently been ranking says far more about where it goes next than what the page is made
+of</strong>.</p>
+<p>Two negative results are worth stating plainly, because both contradict common SEO advice.
+<strong>Content age carries little weight</strong> once ranking momentum is in the model — the
+"refresh the old stuff" heuristic finds no support here. And <strong>the "expand thin content"
+intuition finds none either</strong>: length is close to irrelevant in this portfolio.</p>
+<p>A dominant feature is the classic symptom of leakage, so I ran the standard test: retrain
+without it. A label-derived feature collapses the score toward chance when removed; this one costs
+0.071 AUC and degrades gracefully. It is a strong signal, not a leak.</p>
+<p><strong>Where it is wrong.</strong> Per-client AUC ranges from about <strong>0.48 to
+0.77</strong>. For at least one portfolio with hundreds of pages, the model is no better than a
+coin flip. A single pooled number hides that completely — the model does not "work", it works
+<em>for some portfolios</em>.</p>
+
+<h2><span class="n">Section 6</span>Limitations</h2>
+<ol class="lim">
+<li><strong>No causal claim is available.</strong> Nothing was randomly assigned. I can say pages
+matching a pattern were observed to decline more often. I cannot say that reviewing or refreshing
+a page changes its trajectory, and nothing here is a statement about how Google ranks anything.</li>
+<li><strong>A portfolio-wide drift sits inside the label.</strong> The median page lost 1.53
+positions between windows — the typical page drifts down. The label therefore partly encodes a
+market-wide movement, which is why the base rate appears beside every number above.</li>
+<li><strong>Population selection uses outcome-window information.</strong> Eligibility needs 30
+impressions in the label month, so pages that vanished entirely are excluded. This measures
+decline <em>among pages that stayed measurable</em>, not decline including disappearance.</li>
+<li><strong>It does not work equally across portfolios</strong> (per-client AUC 0.48–0.77), which
+is why the deployed queue abstains for clients where skill was never established.</li>
+<li><strong>Scores are ranks, not probabilities.</strong> They are measurably over-confident at
+the top — predicting ~0.84 where ~0.80 occurred.</li>
+<li><strong>Position is not traffic and not revenue.</strong> A page can lose average position
+while gaining clicks, if it slipped on low-value queries and held the ones that convert.</li>
+<li><strong>The strongest available feature family was unusable</strong> — query-mix diversity
+sits in a table whose window opens inside the outcome month.</li>
+<li><strong>Feature drift is already visible.</strong> Two monitoring triggers fired on the sealed
+window (median position +29.4%, volatility +30.4%). Most of it is panel composition — the panel
+grew from 262k to 409k content items over six months, and newer pages rank deeper — and precision
+held, but the model has never been tested more than one window past its training data.</li>
+</ol>
+
+<h2><span class="n">Section 7</span>Ranked recommendations</h2>
+<p>Work the queue top-down. Each row's action comes from <em>which evidence fired</em>, not from
+how high the score is:</p>
+<div class="tw"><table>
+<tr><th>Action</th><th>Evidence</th><th>What to do</th><th class="n">Pages</th></tr>
+<tr><td><code>review_now</code></td><td>already sliding <em>and</em> on page 1–2</td><td>open it, find what changed, refresh if warranted</td><td class="n">53,978</td></tr>
+<tr><td><code>investigate_volatility</code></td><td>unstable, no clear direction</td><td>look for technical or SERP-layout causes before touching content</td><td class="n">20,622</td></tr>
+<tr><td><code>defend_position</code></td><td>visible, shallow, stable</td><td>leave the content alone; watch weekly</td><td class="n">14,222</td></tr>
+<tr><td><code>monitor</code></td><td>everything else</td><td>nothing this cycle</td><td class="n">27,834</td></tr>
+</table></div>
+
+<figure>
+  <img src="img/action_mix.svg" alt="Number of pages assigned to each recommended action, with the observed decline rate for each.">
+  <figcaption>The action mix across the whole scored population, each bar labelled with the share
+  of those pages that actually declined. <code>review_now</code> is both the largest group and the
+  one where the observed decline rate is highest — which is the behaviour a triage rule should
+  have.</figcaption>
+</figure>
+
+<figure>
+  <img src="img/client_concentration.svg" alt="Cumulative share of the top 200 queue held by each client, with and without a per-client cap.">
+  <figcaption>Without a cap, a handful of portfolios own the queue. Capping each client at 5 pages
+  per 50 costs 10 points of precision (0.860 → 0.760) and turns one client's problem into a list
+  twelve portfolio owners can each act on.</figcaption>
+</figure>
+
+<p>Two rules ship with the queue. <strong>Cap each client</strong>, for the reason above.
+And <strong>abstain where skill was never measured</strong> — six of 28 measured clients fall
+below AUC 0.60 and are served no queue at all, because a queue that is wrong for a portfolio is
+worse than no queue.</p>
+<p><strong>Never automated:</strong> no auto-rewriting, no auto-deindexing or deletion, no
+client-facing performance reporting or billing, no probability language, and no causal claim.</p>
+
+<h2><span class="n">Section 8</span>Reproducibility</h2>
+<p>Everything runs from a fresh clone with a Hugging Face read token:</p>
+<pre><code>pip install -r requirements.txt
+pip install duckdb pyarrow
+export HF_TOKEN=hf_...
+python work/scripts/build_modeling_frame.py --sealed</code></pre>
+<p>Then the notebooks in order: <code>w03_data_contract</code> → <code>w04_baseline_score</code> →
+<code>w05_model</code> → <code>w06_validation_audit</code> → <code>w07_action_playbook</code> →
+<code>capstone</code>. Heavy scans cache on first run.</p>
+<p>Seed <code>20260808</code> throughout. pandas 3.0.3, numpy 2.5.1, scikit-learn 1.9.0, duckdb
+1.5.5. Tree-ensemble figures move a point or two across library versions, so the ~1.5× lift over
+base rate is the stable claim, not the third decimal.</p>
+<p>The sealed evaluation leaves receipts, both committed: the script that builds the sealed frame
+(committed <em>before</em> that frame was ever read, and producing the development and sealed
+frames from the same code so they cannot drift), and the metrics file it produced. Every number on
+this page traces to a JSON in <code>work/outputs/</code>.</p>
+
+<h2><span class="n">Section 9</span>Acknowledgments &amp; data credit</h2>
+<p>Built on the FlyRank ML Internship dataset — <a href="https://flyrank.ai">https://flyrank.ai</a>.
+The warehouse release is a pseudonymized export prepared for this internship. All analysis, errors
+and opinions here are mine. Track leads: Mirza Ašćerić (ML) and Hole (data engineering).</p>
+
+<footer>
+  si-ux · FlyRank ML Internship 2026 · Ranking Signal Analysis<br>
+  Notebooks, scripts and metrics receipts:
+  <a href="https://github.com/si-ux/FlyrankAI-Internship">github.com/si-ux/FlyrankAI-Internship</a>
+</footer>
+
+</div>
+</body>
+</html>
