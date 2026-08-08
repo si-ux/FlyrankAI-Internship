@@ -1,0 +1,47 @@
+{
+  "sealed_label_month": "2026-06",
+  "seed": 20260808,
+  "sklearn": "1.9.0",
+  "results": {
+    "dev, grouped OOF (ML-08 headline)": {
+      "n": 106461.0,
+      "base_rate": 0.5673,
+      "roc_auc": 0.6493,
+      "P@50": 0.8,
+      "P@500": 0.832,
+      "P@5000": 0.8288
+    },
+    "dev, random-split OOF (inflated)": {
+      "n": 106461.0,
+      "base_rate": 0.5673,
+      "roc_auc": 0.7763,
+      "P@50": 1.0,
+      "P@500": 0.974,
+      "P@5000": 0.9408
+    },
+    "SEALED Jun-2026, all clients": {
+      "n": 116656.0,
+      "base_rate": 0.5622,
+      "roc_auc": 0.692,
+      "P@50": 0.86,
+      "P@500": 0.856,
+      "P@5000": 0.8278
+    },
+    "SEALED Jun-2026, unseen clients only": {
+      "n": 6520.0,
+      "base_rate": 0.2951,
+      "roc_auc": 0.6064,
+      "P@50": 0.6,
+      "P@500": 0.504,
+      "P@5000": 0.3248
+    },
+    "SEALED Jun-2026, baseline rule": {
+      "n": 116656.0,
+      "base_rate": 0.5622,
+      "roc_auc": 0.6561,
+      "P@50": 0.78,
+      "P@500": 0.666,
+      "P@5000": 0.7224
+    }
+  }
+}
