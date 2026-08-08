@@ -1,0 +1,46 @@
+{
+  "base_rate": 0.5673,
+  "n_items": 106461,
+  "n_clients": 42,
+  "weights": {
+    "already_sliding": 3,
+    "unstable_position": 1,
+    "shallow_and_exposed": 1,
+    "high_visibility": 1,
+    "intermittent_visibility": 1
+  },
+  "volatility_threshold": 6.1293,
+  "precision_at_k": [
+    {
+      "k": 20,
+      "precision_at_k": 0.65,
+      "lift_over_base": 1.146
+    },
+    {
+      "k": 50,
+      "precision_at_k": 0.76,
+      "lift_over_base": 1.34
+    },
+    {
+      "k": 100,
+      "precision_at_k": 0.76,
+      "lift_over_base": 1.34
+    },
+    {
+      "k": 500,
+      "precision_at_k": 0.846,
+      "lift_over_base": 1.491
+    },
+    {
+      "k": 1000,
+      "precision_at_k": 0.847,
+      "lift_over_base": 1.493
+    },
+    {
+      "k": 5000,
+      "precision_at_k": 0.8424,
+      "lift_over_base": 1.485
+    }
+  ],
+  "note": "rule baseline, no fitted weights; frozen once ML-08 modelling starts"
+}
