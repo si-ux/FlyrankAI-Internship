@@ -7,6 +7,9 @@ data/**
 
 # Never commit bulk dataset dumps or archives
 *.parquet
+# model prediction caches: regenerable from work/scripts/ + the notebooks.
+# Metrics JSONs stay tracked -- they are the receipts the write-ups cite.
+*.npy
 *.zip
 *.tar
 *.tar.gz
