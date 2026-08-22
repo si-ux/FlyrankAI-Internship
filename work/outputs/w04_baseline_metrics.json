@@ -2,45 +2,58 @@
   "base_rate": 0.5673,
   "n_items": 106461,
   "n_clients": 42,
-  "weights": {
-    "already_sliding": 3,
-    "unstable_position": 1,
-    "shallow_and_exposed": 1,
-    "high_visibility": 1,
-    "intermittent_visibility": 1
+  "signal_verdicts": {
+    "staleness_refresh_flag": "FALSE",
+    "ctr_vs_position_ctrfix_flag": "MIXED"
   },
-  "volatility_threshold": 6.1293,
+  "rule": {
+    "conditions": {
+      "sliding": 3,
+      "shallow": 1,
+      "low_ctr_for_position": 1,
+      "unstable": 1,
+      "visible": 1
+    },
+    "tie_break": "log1p(f_impressions) scaled into [0,1)"
+  },
+  "reason_code_counts": {
+    "no_signal": 37010,
+    "low_ctr_for_position": 28818,
+    "sliding_on_page_1_2": 24212,
+    "sliding_but_deep": 10654,
+    "unstable_and_visible": 5767
+  },
   "precision_at_k": [
     {
-      "k": 20,
-      "precision_at_k": 0.65,
-      "lift_over_base": 1.146
+      "k": 10,
+      "precision_at_k": 0.9,
+      "lift_over_base": 1.587
     },
     {
       "k": 50,
-      "precision_at_k": 0.76,
-      "lift_over_base": 1.34
+      "precision_at_k": 0.82,
+      "lift_over_base": 1.446
     },
     {
       "k": 100,
-      "precision_at_k": 0.76,
-      "lift_over_base": 1.34
+      "precision_at_k": 0.89,
+      "lift_over_base": 1.569
     },
     {
       "k": 500,
-      "precision_at_k": 0.846,
-      "lift_over_base": 1.491
+      "precision_at_k": 0.916,
+      "lift_over_base": 1.615
     },
     {
       "k": 1000,
-      "precision_at_k": 0.847,
-      "lift_over_base": 1.493
+      "precision_at_k": 0.902,
+      "lift_over_base": 1.59
     },
     {
       "k": 5000,
-      "precision_at_k": 0.8424,
-      "lift_over_base": 1.485
+      "precision_at_k": 0.8496,
+      "lift_over_base": 1.498
     }
   ],
-  "note": "rule baseline, no fitted weights; frozen once ML-08 modelling starts"
+  "note": "frozen once ML-08 modelling starts"
 }

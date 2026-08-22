@@ -1,0 +1,27 @@
+{
+  "iteration_month": "2026-03",
+  "label_month": "2026-04",
+  "unit": "one content item, evaluated once",
+  "tables": [
+    "fact_content_daily_performance",
+    "dim_content"
+  ],
+  "label_rule": "is_position_decline = (o_pos - f_pos) >= 1.0",
+  "excluded_headline": "fact_content_query_90d (window opens 2026-04-02, inside the outcome month)",
+  "features": [
+    "f_pos",
+    "f_impressions",
+    "f_ctr",
+    "f_pos_volatility",
+    "f_days_with_impressions"
+  ],
+  "population": "f_impressions >= 100 AND o_impressions >= 30",
+  "rows": 98404,
+  "clients": 42,
+  "base_rate": 0.5179,
+  "leak_demo": {
+    "honest_auc": 0.5576,
+    "leaked_auc": 0.9988,
+    "leaked_column": "o_pos"
+  }
+}

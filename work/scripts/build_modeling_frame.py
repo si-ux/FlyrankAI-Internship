@@ -143,6 +143,11 @@ SELECT
     d.keyword_token_count,
     DATE_DIFF('day', d.content_created_date, DATE '{last}-01' + INTERVAL 1 MONTH - INTERVAL 1 DAY)
                                                      AS content_age_days,
+    -- Days since the page itself was last updated, measured AT the decision moment.
+    -- This is a property of the content (knowable at the cut), not the platform's
+    -- optimisation decision -- `last_optimized_date` stays excluded.
+    DATE_DIFF('day', d.content_updated_date, DATE '{last}-01' + INTERVAL 1 MONTH - INTERVAL 1 DAY)
+                                                     AS days_since_update,
     -- label block
     o.o_impressions,
     o.o_pos,
