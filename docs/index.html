@@ -81,10 +81,11 @@ pseudonymized warehouse release — 78.8 million daily rows across 104 clients, 
 with DuckDB over remote Parquet — I framed the question as ranking, labelled a page as declining
 when its impression-weighted average search position worsened by at least one place between a
 90-day feature window and the following month, and compared a learned model against a frozen
-five-condition hand-written rule on a client-grouped split. On a sealed June 2026 test month the
-random forest put <strong>86% declining pages in its top 50 against a 56.2% base rate</strong>,
-while the transparent rule reached 78% — a real but modest win, and the same model scored a
-<em>perfect</em> top-50 under a careless random split that let it memorise clients. The output is
+four-condition hand-written rule on a client-grouped split. On a sealed June 2026 test month the
+random forest put <strong>90% declining pages in its top 50 against a 56.2% base rate</strong>,
+while the transparent rule reached 78% — and deeper in the queue the rule overtakes it, so the two
+win at different depths. The same model scored 0.96 under a careless random split that let it
+memorise clients. The output is
 a reason-coded review queue with a per-client cap, an abstention gate for portfolios where skill
 was never measured, and drift monitors. It is decision-support for ordering manual review, not a
 prediction of any page's fate and not a claim about Google's algorithm.</p>
@@ -133,21 +134,27 @@ position worsens by at least <strong>1.0 places</strong> between the two windows
 weighting matters: averaging daily position figures would let a 2-impression day count as much as
 a 20,000-impression one. Base rate: <strong>56.7%</strong>.</p>
 
-<p><strong>The baseline, written first and then frozen.</strong> Before any model, a rule you can
-read: a page needs review if its ranking was <em>already sliding</em> before the cut-off (3
-points), if that ranking is <em>unstable</em>, if it sits <em>shallow enough to have somewhere to
-fall</em>, if it is <em>seen often enough to matter</em>, and if its visibility is
-<em>intermittent</em> (1 point each).</p>
+<p><strong>Two signals checked, then a baseline frozen.</strong> Before any model I tested two
+premises behind real FlyRank flags. <strong>Staleness</strong> — the reasoning behind refresh
+flags — came back <strong>FALSE</strong>: the last-update field is a live snapshot, so 81.8% of
+pages carry an update date <em>after</em> the decision moment, and on the pages that are testable
+the decline gradient is 0.586 against a 0.567 base. <strong>CTR-for-position</strong> came back
+<strong>MIXED</strong>: it supports the claim on page 1 (+10.7 points, n = 50,913) and vanishes
+below position 20.</p>
+<p>What survived became the rule: a page needs review if its ranking was <em>already sliding</em>
+before the cut-off (3 points), and additionally if it sits <em>shallow enough to have somewhere to
+fall</em>, is <em>capturing fewer clicks than its tier normally does</em>, is <em>unstable</em>,
+or is <em>seen often enough to matter</em> (1 point each). Each page gets exactly one reason code
+and one action.</p>
 
 <div class="callout">
-<strong>The first thing that went wrong.</strong> Five integer conditions produce only eight
-distinct scores across 106,461 pages, so thousands of pages tie. Ranking those ties in whatever
-order the data arrived put precision@50 at <strong>0.420 — below the 0.567 base rate</strong> —
-while precision@5000 was 0.799. A rule that looks worse than chance at the top and far better in
-bulk does not have a weak signal; its <em>ordering is not determined</em>. The data arrives
-clustered by client, so the tie block was one unrepresentative clump. Breaking ties by exposure
-lifted precision@50 to 0.760. The same pathology later explained why a shallow decision tree
-scored 0.320.
+<strong>The staleness result is the one to take away.</strong> "How long since we last touched it"
+is the premise under most refresh programmes — and in this portfolio it does not predict decay.
+Ordering a queue by age puts precision at <strong>0.460 at K=50, below the 0.562 base rate</strong>:
+measurably worse than picking at random, because age and risk are close to unrelated here.
+Ordering the same pages by observed position movement holds 0.82–0.90 across the whole range. A
+calendar-driven refresh programme spends effort in proportion to age; a movement-driven one spends
+it in proportion to risk.
 </div>
 
 <p><strong>The split — the decision that mattered most.</strong> Pages are not independent. They
@@ -170,16 +177,16 @@ test is capable of catching a dirty one.</p>
 <tr><th>Model</th><th class="n">ROC AUC</th><th class="n">P@50</th><th class="n">P@500</th></tr>
 <tr><td>base rate (random pick)</td><td class="n">0.500</td><td class="n">0.567</td><td class="n">0.567</td></tr>
 <tr><td>logistic regression</td><td class="n">0.617</td><td class="n">0.740</td><td class="n">0.682</td></tr>
-<tr><td>decision tree (depth 4)</td><td class="n">0.612</td><td class="n">0.320</td><td class="n">0.464</td></tr>
-<tr><td>hand-written rule (frozen)</td><td class="n">0.635</td><td class="n">0.760</td><td class="n">0.846</td></tr>
-<tr class="hl"><td>random forest</td><td class="n">0.649</td><td class="n">0.800</td><td class="n">0.832</td></tr>
+<tr><td>decision tree (depth 4)</td><td class="n">0.612</td><td class="n">0.320</td><td class="n">0.362</td></tr>
+<tr><td>hand-written rule (frozen)</td><td class="n">0.637</td><td class="n">0.820</td><td class="n">0.916</td></tr>
+<tr class="hl"><td>random forest</td><td class="n">0.651</td><td class="n">0.880</td><td class="n">0.844</td></tr>
 </table></div>
 
 <p>Sealed June 2026 month — a month the model was never fitted on:</p>
 <div class="tw"><table>
 <tr><th>Evaluation</th><th class="n">base rate</th><th class="n">ROC AUC</th><th class="n">P@50</th></tr>
-<tr class="hl"><td>sealed, all clients</td><td class="n">0.562</td><td class="n">0.692</td><td class="n">0.860</td></tr>
-<tr><td>sealed, unseen clients only</td><td class="n">0.295</td><td class="n">0.606</td><td class="n">0.600</td></tr>
+<tr class="hl"><td>sealed, all clients</td><td class="n">0.562</td><td class="n">0.692</td><td class="n">0.900</td></tr>
+<tr><td>sealed, unseen clients only</td><td class="n">0.295</td><td class="n">0.608</td><td class="n">0.600</td></tr>
 <tr><td>sealed, frozen rule</td><td class="n">0.562</td><td class="n">0.656</td><td class="n">0.780</td></tr>
 </table></div>
 
@@ -192,7 +199,7 @@ test is capable of catching a dirty one.</p>
 
 <div class="callout">
 <strong>The finding I would most want another analyst to take away.</strong> The same random
-forest, on the same rows, scores <strong>AUC 0.776 and a perfect precision@50 of 1.000</strong>
+forest, on the same rows, scores <strong>AUC 0.777 and precision@50 of 0.960</strong>
 under a random split. Nothing about the model improved — it was simply allowed to see other pages
 belonging to the same client. Reporting that number would have claimed roughly
 <strong>double</strong> the true skill above base rate. The most useful number in this project is
@@ -266,8 +273,8 @@ how high the score is:</p>
 <figure>
   <img src="img/client_concentration.svg" alt="Cumulative share of the top 200 queue held by each client, with and without a per-client cap.">
   <figcaption>Without a cap, a handful of portfolios own the queue. Capping each client at 5 pages
-  per 50 costs 10 points of precision (0.860 → 0.760) and turns one client's problem into a list
-  twelve portfolio owners can each act on.</figcaption>
+  per 50 costs 16 points of precision (0.900 → 0.740) and turns one client's problem into a list
+  thirteen portfolio owners can each act on.</figcaption>
 </figure>
 
 <p>Two rules ship with the queue. <strong>Cap each client</strong>, for the reason above.

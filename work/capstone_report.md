@@ -13,10 +13,11 @@ pseudonymized warehouse release — 78.8 million daily rows across 104 clients, 
 with DuckDB over remote Parquet — I framed the question as ranking, labelled a page as declining
 when its impression-weighted average search position worsened by at least one place between a
 90-day feature window and the following month, and compared a learned model against a frozen
-five-condition hand-written rule on a client-grouped split. On a sealed June 2026 test month the
-random forest put 86% declining pages in its top 50 against a 56.2% base rate, while the
-transparent rule reached 78% — a real but modest win, and the same model scored a *perfect*
-top-50 under a careless random split that let it memorise clients. The output is a reason-coded
+four-condition hand-written rule on a client-grouped split. On a sealed June 2026 test month the
+random forest put 90% declining pages in its top 50 against a 56.2% base rate, while the
+transparent rule reached 78% — and deeper in the queue the rule overtakes it, so the two win at
+different depths. The same model scored 0.96 under a careless random split that let it memorise
+clients. The output is a reason-coded
 review queue with a per-client cap, an abstention gate for portfolios where skill was never
 measured, and drift monitors. It is decision-support for ordering manual review, not a prediction
 of any page's fate and not a claim about Google's algorithm.
@@ -42,7 +43,8 @@ overall accuracy.
 fails: content age carries little weight once ranking behaviour is in the model. What does work
 is recent position movement interacting with volatility and visibility — awkward as an
 if-statement, easy to learn. The honest qualifier, established in section 3, is that a
-transparent five-condition rule captures most of that signal on its own.
+transparent four-condition rule captures most of that signal on its own, and beats the model
+outright from K=500 outward.
 
 ## 2. Data safety
 
@@ -75,27 +77,44 @@ into a notebook cell.
 
 ## 3. Baseline
 
-Five hand-weighted conditions, no fitted parameters, all measured strictly inside the feature
-window:
+Before any model, two signals were checked — both premises behind real FlyRank flags — and only
+the survivors were allowed into the rule.
 
-| Reason code | Condition | Points |
-|---|---|---:|
-| `already_sliding` | March position ≥ 1.0 place worse than January | **3** |
-| `unstable_position` | position volatility ≥ median | 1 |
-| `shallow_and_exposed` | 0 < position ≤ 20 | 1 |
-| `high_visibility` | ≥ 1,000 impressions | 1 |
-| `intermittent_visibility` | < 60 of 90 days with impressions | 1 |
+| Signal | Flag it underpins | Verdict | Evidence |
+|---|---|---|---|
+| Staleness (`days_since_update`) | refresh flags | **FALSE** | the field is future-dated for 81.8% of pages; on the 19,403 testable pages the gradient is 0.586 vs a 0.567 base, and every other bucket is under the 50-row floor |
+| CTR vs position, within tier | CTR-fix | **MIXED** | supports on `page_1` (+10.7pt, n=50,913) and `top_3` (+7.8pt); flat on `page_3_5`; untestable on `deep` |
 
-**Why it is a fair comparison:** it uses the same rows, the same label, and the same
-precision@K metric as the model, and it was **frozen before modelling began** and carried
-unchanged onto the sealed frame.
+Staleness was removed from the rule by its own verdict. CTR-for-tier entered only for pages at
+position ≤ 20, where the claim's own logic applies.
 
-**A finding from building it.** Five integer conditions produce only eight distinct scores across
-106,461 pages, so thousands tie. Ranking ties in frame order put precision@50 at **0.420 — below
-the 0.567 base rate** — while precision@5000 was 0.799. The frame arrives clustered by client, so
-the tie block was an unrepresentative clump: the rule's *ordering was not determined*. Breaking
-ties by exposure (`log1p` impressions, squashed inside one point) fixes it, lifting P@50 to
-**0.760**. The same pathology later explained the depth-4 tree's poor P@50.
+**The rule** — four conditions, no fitted parameters, all inside the feature window:
+
+| Condition | Points |
+|---|---:|
+| `sliding` — March position ≥ 1.0 place worse than January | **3** |
+| `shallow` — 0 < position ≤ 20 | 1 |
+| `low_ctr_for_position` — below tier-median CTR **and** shallow | 1 |
+| `unstable` — position volatility ≥ median | 1 |
+| `visible` — ≥ 1,000 impressions | 1 |
+
+Each page carries exactly **one** reason code (first match wins, most specific first) and one
+action label. `sliding_on_page_1_2` is the highest-yield code at a **0.777** observed decline rate.
+
+**Why it is a fair comparison:** same rows, same label, same precision@K metric as the model,
+**frozen before modelling began** and carried unchanged onto the sealed frame. One asymmetry is
+stated rather than hidden: the rule's within-tier CTR median is a population statistic over all
+rows, so the rule sees the full feature distribution while every model number is strictly
+out-of-fold. No label touches it, but the comparison mildly favours the rule.
+
+**A finding from building it.** Four integer conditions produce only **8 distinct scores** across
+106,461 pages, so thousands of pages tie. On integers alone the rule still beats the base rate
+(P@50 0.680) but is far weaker at the top than the tie-broken version (0.820). The frame arrives
+clustered by client, so an unbroken tie block is largely one client's pages. Breaking ties by
+exposure is a **priority judgement** — "among equal evidence, review what more people see" — and
+roughly a third of the rule's top-of-list performance rests on it.
+
+**Its numbers:** P@10 0.900, P@50 0.820, P@500 0.916 against a 0.567 base rate.
 
 ## 4. Model / analysis
 
@@ -133,21 +152,21 @@ on a portfolio it has never seen.
 |---|---:|---:|---:|
 | base rate | 0.500 | 0.567 | 0.567 |
 | logistic_regression | 0.617 | 0.740 | 0.682 |
-| decision_tree_d4 | 0.612 | 0.320 | 0.464 |
-| **baseline_rule (frozen)** | 0.635 | 0.760 | 0.846 |
-| **random_forest** | **0.649** | **0.800** | 0.832 |
-| rf + client-relative | 0.636 | 0.880 | 0.876 |
+| decision_tree_d4 | 0.612 | 0.320 | 0.362 |
+| **baseline_rule (frozen)** | 0.637 | 0.820 | **0.916** |
+| **random_forest** | **0.651** | **0.880** | 0.844 |
+| rf + client-relative | 0.637 | 0.860 | 0.870 |
 
 **Sealed test (label June 2026, model fitted on the dev window only):**
 
 | Evaluation | base rate | ROC AUC | P@50 |
 |---|---:|---:|---:|
-| SEALED, all clients | 0.562 | **0.692** | **0.860** |
-| SEALED, unseen clients only | 0.295 | 0.606 | 0.600 |
+| SEALED, all clients | 0.562 | **0.692** | **0.900** |
+| SEALED, unseen clients only | 0.295 | 0.608 | 0.600 |
 | SEALED, frozen rule | 0.562 | 0.656 | 0.780 |
 
 **The split diagnostic — the headline methodological result.** The same random forest scores
-**AUC 0.776 and a perfect P@50 = 1.000** under a random split. Nothing about the model improved;
+**AUC 0.777 and P@50 = 0.960** under a random split. Nothing about the model improved;
 it was merely allowed to see other pages from the same client. Published carelessly, that would
 have claimed roughly **double** the true skill above base rate.
 
@@ -164,8 +183,8 @@ stabilised — regression to the mean, which no feature here separates from genu
 Confident false negatives looked stable for ninety days and dropped anyway, driven by competitor
 moves, SERP layout changes or algorithm updates that the panel cannot observe.
 
-**On the unseen-client row.** Absolute precision drops (0.860 → 0.600) but its base rate is also
-far lower (0.562 → 0.295), so in lift terms it does not degrade: 2.03× versus 1.53×. Both
+**On the unseen-client row.** Absolute precision drops (0.900 → 0.600) but its base rate is also
+far lower (0.562 → 0.295), so in lift terms it does not degrade: 2.03× versus 1.60×. Both
 readings are true and they answer different questions; quoting either alone would mislead.
 
 ## 6. Interpretation
@@ -180,16 +199,19 @@ in SEO — carries little weight once ranking momentum is present. The "expand t
 intuition finds no support here either: content-property features are near the bottom of the
 importance ranking.
 
-**The most useful surprise was methodological.** The client-relative variant (comparing each page
-to its own client's median position, trend and traffic) produced the best top-of-queue precision
-in the project, **0.880** — but made client concentration *worse*, raising the largest client's
-share of the top 50 from 62% to 78% and cutting distinct clients from 5 to 3. Normalising a page
-against its own portfolio makes the most internally-anomalous pages rise, and those cluster in
-whichever portfolio is most volatile. It is the best ranker and the worst distributor; the
-concentration problem needed an explicit cap at queue-building time, not a feature fix.
+**The most useful surprise was a negative one about staleness.** "How long since we last touched
+it" — the premise behind refresh flags — returned a **FALSE** verdict. `content_updated_date` in
+`dim_content` is a live snapshot, so 81.8% of pages carry an update date *after* the decision
+moment, making the field future information; and on the 19,403 pages that are testable the decline
+gradient is 0.586 against a 0.567 base. Ordering a refresh queue by age is measurably worse than
+chance at the top (precision 0.460 at K=50 against a 0.562 base). Ordering by observed movement
+holds 0.82–0.90 across the same range.
 
-**And the honest headline:** a transparent five-condition rule captures most of what the forest
-finds. The gap on the sealed month is 0.860 versus 0.780 at P@50. That is a real win and a small
+The client-relative variant also failed to earn its place: P@50 of 0.860 (below the plain forest's
+0.880) while making concentration worse — 3 distinct clients in the top 50 against 5.
+
+**And the honest headline:** a transparent four-condition rule captures most of what the forest
+finds, and beats it outright deeper in the queue. On the sealed month the model leads at P@50 (0.900 vs 0.780); on the development window the rule leads from K=500 outward (0.916 vs 0.844). That is a real win and a small
 one, and the rule remains a legitimate fallback.
 
 ## 7. Recommendation
@@ -206,9 +228,9 @@ score height:
 
 **Three rules ship with the queue.**
 
-1. **Cap each client at 5 pages per 50.** Uncapped, one client takes 38% of the top 50 and only 6
-   portfolios appear. The cap costs **10 points of precision (0.860 → 0.760)** and buys a queue
-   **12 portfolio owners** can each act on. That is a judgement call and is stated as one.
+1. **Cap each client at 5 pages per 50.** Uncapped, one client takes 40% of the top 50 and only 6
+   portfolios appear. The cap costs **16 points of precision (0.900 → 0.740)** and buys a queue
+   **13 portfolio owners** can each act on. That is a judgement call and is stated as one.
 2. **Abstain where skill was never measured.** Six of 28 measured clients fall below AUC 0.60 and
    are served no queue. A queue that is wrong for a portfolio is worse than no queue.
 3. **Check before acting.** Did the page change, or did the SERP? Is the decline in queries you
